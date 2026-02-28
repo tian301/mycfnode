@@ -1,58 +1,48 @@
 export default {
   async fetch(request, env) {
-    try {
-      const url = new URL(request.url);
-      const ua = request.headers.get('user-agent') || '';
+    const url = new URL(request.url);
+    const upgrade = request.headers.get('Upgrade') || '';
 
-      // ·ÀÅÀ¡¢·ÀÉ¨Ãè¡¢·ÀÌ½Õë
-      const badUA = [
-        'curl', 'wget', 'python', 'httpx', 'node', 'axios', 'scrapy',
-        'headless', 'puppeteer', 'bot', 'spider', 'scan'
-      ];
+    // å¤„ç† WebSocket è¿æ¥ï¼ˆVLESS æµé‡ï¼‰
+    if (upgrade.toLowerCase() === 'websocket' && url.pathname === '/vless-reality') {
+      const webSocketPair = new WebSocketPair();
+      const [client, server] = Object.values(webSocketPair);
 
-      if (badUA.some(i => ua.toLowerCase().includes(i))) {
-        return new Response('Not Found', { status: 404 });
-      }
+      server.accept();
 
-      // Ö»ÔÊĞí TLS 1.2+
-      if (!request.cf.tlsVersion || request.cf.tlsVersion < 'TLSv1.2') {
-        return new Response('Forbidden', { status: 403 });
-      }
+      // ç®€å•è½¬å‘ WebSocket æ¶ˆæ¯
+      server.addEventListener('message', (event) => {
+        try {
+          client.send(event.data);
+        } catch (e) {}
+      });
 
-      // Î±×°³ÉÕı³£ÍøÕ¾
-      if (request.method === 'GET' && url.pathname === '/') {
-        return new Response(`
+      client.addEventListener('message', (event) => {
+        try {
+          server.send(event.data);
+        } catch (e) {}
+      });
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      });
+    }
+
+    // ä¼ªè£…æˆæ­£å¸¸ç½‘ç«™ï¼Œé˜²æ­¢æ¢æµ‹
+    return new Response(`
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Welcome</title>
+    <title>Just a normal site</title>
 </head>
 <body>
-    <h1>Just a normal site.</h1>
+    <h1>Welcome to my site</h1>
 </body>
 </html>
-        `, {
-          headers: { 'Content-Type': 'text/html; charset=utf-8' }
-        });
-      }
-
-      // Reality Á÷Á¿´¦Àí£¨·ÀÇ½¡¢·ÀÌØÕ÷¡¢·ÀÊ¶±ğ£©
-      if (url.pathname === '/vless-reality') {
-        return handleReality(request);
-      }
-
-      return new Response('Not Found', { status: 404 });
-    } catch (err) {
-      return new Response('Error', { status: 500 });
-    }
+    `, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
   }
 };
-
-// Reality ºËĞÄ´¦Àí
-async function handleReality(request) {
-  return new Response(null, {
-    status: 200,
-    webSocket: true,
-  });
-}
